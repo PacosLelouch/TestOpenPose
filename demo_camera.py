@@ -33,6 +33,7 @@ import pyrender
 import trimesh
 from typing import List, Optional
 import time
+import queue, threading
 
 from prohmr.configs import get_config, prohmr_config, dataset_config
 from prohmr.models import ProHMR
@@ -190,6 +191,41 @@ class MyRenderer(Renderer):
 #        renderer.delete()
         return output_img
     
+class MyVideoCapture:
+    def __init__(self, name):
+        self.cap = cv2.VideoCapture(name)
+        self.q = queue.Queue()
+        t = threading.Thread(target=self._reader)
+        t.daemon = True
+        t.start()
+        
+    def open(self, name):
+        self.cap.open(name)
+        
+    def release(self):
+        self.cap.release()
+        
+    def get(self, attr):
+        return self.cap.get(attr)
+        
+    def isOpened(self):
+        return self.cap.isOpened()
+
+    # read frames as soon as they are available, keeping only most recent one
+    def _reader(self):
+        while True:
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+            if not self.q.empty():
+                try:
+                    self.q.get_nowait()   # discard previous (unprocessed) frame
+                except queue.Empty:
+                    pass
+            self.q.put((ret, frame))
+
+    def read(self):
+        return (False, None) if self.q.empty() else self.q.get()
 
 
 parser = argparse.ArgumentParser(description='ProHMR demo code')
@@ -202,6 +238,8 @@ parser.add_argument('--out_format', type=str, default='jpg', choices=['jpg', 'pn
 parser.add_argument('--run_fitting', dest='run_fitting', action='store_true', default=False, help='If set, run fitting on top of regression')
 parser.add_argument('--full_frame', dest='full_frame', action='store_true', default=False, help='If set, run fitting in the original image space and not in the crop.')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch size for inference/fitting')
+parser.add_argument('--cam', type=str, default="", help='Camera path. Default is 0.')
+parser.add_argument('--run_open_pose', dest='run_open_pose', action='store_true', default=False, help='Run open pose for debug.')
 
 
 args = parser.parse_args()
@@ -210,9 +248,10 @@ args = parser.parse_args()
 Start OpenPose Settings
 """
 
+should_run_open_pose = args.run_fitting or args.run_open_pose
 open_pose_running = False
 
-if args.run_fitting:
+if should_run_open_pose:
     try:
         # Import Openpose (Windows/Ubuntu/OSX)
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -279,7 +318,10 @@ if args.run_fitting:
 #dataloader = torch.utils.data.DataLoader(dataset, args.batch_size, shuffle=False)
 
 # Setup video capture
-cap = cv2.VideoCapture(0)
+cam_path = args.cam
+cap = MyVideoCapture(0 if cam_path == "" else cam_path)
+#if cam_path != "":
+#    cap.open(cam_path)
 image_width = model_cfg.MODEL.IMAGE_SIZE
 image_height = model_cfg.MODEL.IMAGE_SIZE
 viewport_size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
@@ -297,6 +339,11 @@ if not os.path.exists(args.out_folder):
 #for i, batch in enumerate(tqdm(dataloader)):
 named_window_name = 'Demo Camera ProHMR'
 cv2.namedWindow(named_window_name)
+
+if open_pose_running:
+    named_window_name_OpenPose = 'Demo Camera OpenPose'
+    cv2.namedWindow(named_window_name_OpenPose)
+
 record_time = 0.0
 while cap.isOpened():
     if cv2.waitKey(1) & 0Xff == ord('q'):
@@ -312,6 +359,8 @@ while cap.isOpened():
     window_title = 'render [fps = %.3f (hz)]'%(fps)
     
     ret, frame = cap.read()
+    if not ret:
+        continue
     #print(ret, frame)
     #print(frame.shape)
     frame1 = cv2.resize(frame, (image_width, image_height), interpolation=cv2.INTER_AREA)
@@ -338,10 +387,13 @@ while cap.isOpened():
         
         #print(frame1)
         
-        #cv2.imshow('datum.cvOutputData', datum.cvOutputData)
+        window_title_OpenPose = 'OpenPose [fps = %.3f (hz)]'%(fps)
+        cv2.imshow(named_window_name_OpenPose, cv2.resize(datum.cvOutputData, viewport_size))
+        cv2.setWindowTitle(named_window_name_OpenPose, window_title_OpenPose)
         
         pose_keypoints = np.zeros((1, 44, 3))
-        pose_keypoints[:, :datum.poseKeypoints.shape[1], :] = datum.poseKeypoints
+        if datum.poseKeypoints is not None:
+            pose_keypoints[-1, :datum.poseKeypoints.shape[1], :] = datum.poseKeypoints[-1]
         #print(pose_keypoints, pose_keypoints.shape)
         batch['keypoints_2d'] = torch.Tensor(pose_keypoints)
         #print(batch['keypoints_2d'])
