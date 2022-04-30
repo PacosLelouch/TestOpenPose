@@ -3,10 +3,10 @@ Interactive OpenPose-related applications.
 
 ## Environment
 
-1. https://www.flir.com/products/spinnaker-sdk/?vertical=machine+vision&segment=iis
-2. OpenPose
-3. ProHMR
-4. SPIN
+1. [FLIR Camera Spinnaker SDK](https://www.flir.com/products/spinnaker-sdk/?vertical=machine+vision&segment=iis)
+2. [OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose)
+3. [ProHMR](https://github.com/nkolot/ProHMR)
+4. [SPIN](https://github.com/nkolot/SPIN)
 
 
 
