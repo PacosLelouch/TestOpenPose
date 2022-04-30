@@ -33,7 +33,6 @@ import pyrender
 import trimesh
 from typing import List, Optional
 import time
-import queue, threading
 
 from prohmr.configs import get_config, prohmr_config, dataset_config
 from prohmr.models import ProHMR
@@ -43,42 +42,7 @@ from prohmr.datasets import OpenPoseDataset
 from prohmr.utils.renderer import Renderer
 
 from my_renderer import MyRenderer
-    
-class MyVideoCapture:
-    def __init__(self, name):
-        self.cap = cv2.VideoCapture(name)
-        self.q = queue.Queue()
-        t = threading.Thread(target=self._reader)
-        t.daemon = True
-        t.start()
-        
-    def open(self, name):
-        self.cap.open(name)
-        
-    def release(self):
-        self.cap.release()
-        
-    def get(self, attr):
-        return self.cap.get(attr)
-        
-    def isOpened(self):
-        return self.cap.isOpened()
-
-    # read frames as soon as they are available, keeping only most recent one
-    def _reader(self):
-        while True:
-            ret, frame = self.cap.read()
-            if not ret:
-                break
-            if not self.q.empty():
-                try:
-                    self.q.get_nowait()   # discard previous (unprocessed) frame
-                except queue.Empty:
-                    pass
-            self.q.put((ret, frame))
-
-    def read(self):
-        return (False, None) if self.q.empty() else self.q.get()
+from my_video_capture import MyVideoCapture
 
 
 parser = argparse.ArgumentParser(description='ProHMR demo code')
@@ -185,7 +149,14 @@ viewport_size = (int(viewport_size[0] * image_ratio), int(viewport_size[1] * ima
 print('viewport_size =', viewport_size)
 
 # Setup the renderer
-renderer = MyRenderer(model_cfg, faces=model.smpl.faces, viewport_size=viewport_size)
+renderer = MyRenderer(faces=model.smpl.faces, 
+                      cfg={
+                              'FOCAL_LENGTH': model_cfg.EXTRA.FOCAL_LENGTH,
+                              'IMAGE_SIZE': model_cfg.MODEL.IMAGE_SIZE,
+                              'IMAGE_STD': model_cfg.MODEL.IMAGE_STD,
+                              'IMAGE_MEAN': model_cfg.MODEL.IMAGE_MEAN,
+                              }, 
+                      viewport_size=viewport_size)
 
 os.chdir('../../')
 

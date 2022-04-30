@@ -41,10 +41,10 @@ from prohmr.optimization import KeypointFitting
 from prohmr.utils import recursive_to
 from prohmr.datasets import OpenPoseDataset
 from prohmr.utils.renderer import Renderer
-        
-from spinnaker_camera_module import SpinnakerCamera
+
 from my_renderer import MyRenderer
 import PySpin
+from spinnaker_camera_module import SpinnakerCamera
 
     
 #class MyVideoCapture:
@@ -178,7 +178,7 @@ if args.run_fitting:
 #cap = MyVideoCapture(0 if cam_path == "" else cam_path)
 #if cam_path != "":
 #    cap.open(cam_path)
-    
+
 sp_camera = SpinnakerCamera()
 
 image_width = model_cfg.MODEL.IMAGE_SIZE
@@ -199,7 +199,14 @@ try:
             
             viewport_size = viewport_sizes[0]
             # Setup the renderer
-            renderer = MyRenderer(model_cfg, faces=model.smpl.faces, viewport_size=viewport_size)
+            renderer = MyRenderer(faces=model.smpl.faces, 
+                                  cfg={
+                                          'FOCAL_LENGTH': model_cfg.EXTRA.FOCAL_LENGTH,
+                                          'IMAGE_SIZE': model_cfg.MODEL.IMAGE_SIZE,
+                                          'IMAGE_STD': model_cfg.MODEL.IMAGE_STD,
+                                          'IMAGE_MEAN': model_cfg.MODEL.IMAGE_MEAN,
+                                          }, 
+                                  viewport_size=viewport_size)
             
             
             if not os.path.exists(args.out_folder):

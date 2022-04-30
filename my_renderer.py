@@ -1,13 +1,23 @@
 
+#import os
+#import sys
+#from sys import platform
+#os.environ['KMP_DUPLICATE_LIB_OK']='True'
+#
+#dir_path = os.path.dirname(os.path.realpath(__file__))
+#sys.path.append(dir_path + '/ProHMR/ProHMR')
+#os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/ProHMR/ProHMR;'
+
 import numpy as np
 import cv2
 import torch
 import pyrender
 import trimesh
 from typing import List, Optional
-from prohmr.utils.renderer import Renderer
+#from prohmr.utils.renderer import Renderer
 
-class MyRenderer(Renderer):
+#class MyRenderer(Renderer):
+class MyRenderer:
     
     def create_raymond_lights() -> List[pyrender.Node]:
         """
@@ -40,8 +50,25 @@ class MyRenderer(Renderer):
     
         return nodes
     
-    def __init__(self, cfg, faces, viewport_size=None):
-        super(MyRenderer, self).__init__(cfg, faces)
+    def __init__(self, faces, cfg : dict, viewport_size=None):
+        """
+        Wrapper around the pyrender renderer to render SMPL meshes.
+        Args:
+            cfg (CfgNode): Model config file.
+            faces (np.array): Array of shape (F, 3) containing the mesh faces.
+        """
+        self.cfg = cfg
+        self.focal_length = cfg.get('FOCAL_LENGTH', None)#cfg.EXTRA.FOCAL_LENGTH
+        self.img_res = cfg.get('IMAGE_SIZE', None)#cfg.MODEL.IMAGE_SIZE
+        self.img_std = cfg.get('IMAGE_STD', None)
+        self.img_mean = cfg.get('IMAGE_MEAN', None)
+        
+        self.renderer = pyrender.OffscreenRenderer(viewport_width=self.img_res,
+                                       viewport_height=self.img_res,
+                                       point_size=1.0)
+
+        self.camera_center = [self.img_res // 2, self.img_res // 2]
+        self.faces = faces
         
         material = pyrender.MetallicRoughnessMaterial(
             metallicFactor=0.0,
@@ -107,8 +134,8 @@ class MyRenderer(Renderer):
             image = cv2.imread(imgname).astype(np.float32)[:, :, ::-1] / 255.
         else:
             # Change the color of the source image.
-            #image = image.clone() * torch.tensor(self.cfg.MODEL.IMAGE_STD, device=image.device).reshape(3,1,1)
-            #image = image + torch.tensor(self.cfg.MODEL.IMAGE_MEAN, device=image.device).reshape(3,1,1)
+            #image = image.clone() * torch.tensor(self.img_std, device=image.device).reshape(3,1,1)
+            #image = image + torch.tensor(self.img_mean, device=image.device).reshape(3,1,1)
             image = image.permute(1, 2, 0).cpu().numpy()
             
         
