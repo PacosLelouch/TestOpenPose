@@ -31,7 +31,11 @@ python ProHMR_demo_spinnaker_camera.py --img_folder=example_data/images --keypoi
 ### SPIN
 
 ```shell
+python SPIN_demo_camera.py --checkpoint=data/model_checkpoint.pt --cam=https://10.0.0.139:8080/video --screen_width=800
+```
 
+```shell
+python SPIN_demo_spinnaker_camera.py --checkpoint=data/model_checkpoint.pt --screen_width=800
 ```
 
 
