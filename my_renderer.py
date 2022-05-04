@@ -62,10 +62,6 @@ class MyRenderer:
         self.img_res = cfg.get('IMAGE_SIZE', None)#cfg.MODEL.IMAGE_SIZE
         self.img_std = cfg.get('IMAGE_STD', None)
         self.img_mean = cfg.get('IMAGE_MEAN', None)
-        
-        self.renderer = pyrender.OffscreenRenderer(viewport_width=self.img_res,
-                                       viewport_height=self.img_res,
-                                       point_size=1.0)
 
         self.camera_center = [self.img_res // 2, self.img_res // 2]
         self.faces = faces
