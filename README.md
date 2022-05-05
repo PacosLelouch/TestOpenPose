@@ -3,10 +3,30 @@ Interactive OpenPose-related applications.
 
 ## Environment
 
+### Basic Environment
+
+1. [Anaconda](https://www.anaconda.com/products/distribution?gclid=Cj0KCQjwyMiTBhDKARIsAAJ-9VulkR13yJuDAfHYao5OeinS8WAIEQhm_AKIJkDC8TAUcLaTWjkTiioaAtd6EALw_wcB)
+
+
+
+### Camera SDK
+
 1. [FLIR Camera Spinnaker SDK](https://www.flir.com/products/spinnaker-sdk/?vertical=machine+vision&segment=iis)
-2. [OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose)
-3. [ProHMR](https://github.com/nkolot/ProHMR)
-4. [SPIN](https://github.com/nkolot/SPIN)
+
+
+
+### Core Algorithm
+
+1. [OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose)
+2. [ProHMR](https://github.com/nkolot/ProHMR)
+3. [SPIN](https://github.com/nkolot/SPIN)
+
+
+
+### Rendering Engine
+
+1. [Taichi](https://github.com/taichi-dev/taichi)==0.7.13
+4. [Tina](https://github.com/taichi-dev/taichi_three)==0.1.1
 
 
 
@@ -15,15 +35,25 @@ Interactive OpenPose-related applications.
 ### ProHMR
 
 ```shell
-python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose
+python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose
 
-python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --run_fitting --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose
+python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose
 ```
+
+
 
 ```shell
 python ProHMR_demo_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --screen_width=800 --run_open_pose
 
 python ProHMR_demo_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --run_fitting --screen_width=800 --run_open_pose
+```
+
+
+
+```shell
+python ProHMR_taichi_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --cam=https://10.0.0.139:8080/video --screen_width=800
+
+python ProHMR_taichi_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --cam=https://10.0.0.139:8080/video --screen_width=800
 ```
 
 

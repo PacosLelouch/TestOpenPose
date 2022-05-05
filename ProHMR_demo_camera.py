@@ -50,14 +50,13 @@ parser.add_argument('--checkpoint', type=str, default='data/checkpoint.pt', help
 parser.add_argument('--model_cfg', type=str, default=None, help='Path to config file. If not set use the default (prohmr/configs/prohmr.yaml)')
 parser.add_argument('--img_folder', type=str, required=True, help='Folder with input images')
 parser.add_argument('--keypoint_folder', type=str, required=True, help='Folder with corresponding OpenPose detections')
-parser.add_argument('--out_folder', type=str, default='demo_out', help='Output folder to save rendered results')
-parser.add_argument('--out_format', type=str, default='jpg', choices=['jpg', 'png'], help='Output image format')
 parser.add_argument('--run_fitting', dest='run_fitting', action='store_true', default=False, help='If set, run fitting on top of regression')
 parser.add_argument('--full_frame', dest='full_frame', action='store_true', default=False, help='If set, run fitting in the original image space and not in the crop.')
-parser.add_argument('--batch_size', type=int, default=1, help='Batch size for inference/fitting')
 parser.add_argument('--cam', type=str, default="", help='Camera path. Default is 0.')
 parser.add_argument('--run_open_pose', dest='run_open_pose', action='store_true', default=False, help='Run open pose for debug.')
 parser.add_argument('--screen_width', type=int, default=-1, help='Screen width. Default is -1 for not changing.')
+parser.add_argument('--render', type=int, default=1, help='Render result. Default is 1.')
+parser.add_argument('--debug_performance', type=int, default=0, help='Debug performance. Default is 0.')
 
 
 args = parser.parse_args()
@@ -149,6 +148,7 @@ viewport_size = (int(viewport_size[0] * image_ratio), int(viewport_size[1] * ima
 print('viewport_size =', viewport_size)
 
 # Setup the renderer
+#print(type(model.smpl.faces), model.smpl.get_num_verts())
 renderer = MyRenderer(faces=model.smpl.faces, 
                       cfg={
                               'FOCAL_LENGTH': model_cfg.EXTRA.FOCAL_LENGTH,
@@ -160,8 +160,8 @@ renderer = MyRenderer(faces=model.smpl.faces,
 
 os.chdir('../../')
 
-if not os.path.exists(args.out_folder):
-    os.makedirs(args.out_folder)
+#if not os.path.exists(args.out_folder):
+#    os.makedirs(args.out_folder)
 
 # Go over each image in the dataset
 #for i, batch in enumerate(tqdm(dataloader)):
@@ -184,6 +184,10 @@ while cap.isOpened():
     fps = -1.0 if fps == 0.0 else 1.0 / fps
     record_time = cur_time
     
+    if args.debug_performance:
+        print('\n==================Loop Start===================')
+        debug_times = [record_time]
+    
     window_title = 'render [fps = %.3f (hz)]'%(fps)
     
     ret, frame = cap.read()
@@ -200,7 +204,12 @@ while cap.isOpened():
     batch = { 'has_smpl_params':{} }
     batch['img'] = torch.Tensor(np.array([frame2]))
     batch['imgname'] = [img_fn]
+    batch['keypoints_2d'] = None
     if open_pose_running:
+        if args.debug_performance:
+            print('-----------------Begin Open Pose-------------------')
+            debug_times.append(time.time())
+            
         datum = op.Datum()
         datum.cvInputData = frame1
         opWrapper.emplaceAndPop(op.VectorDatum([datum]))
@@ -223,10 +232,17 @@ while cap.isOpened():
         pose_keypoints = np.zeros((1, 44, 3))
         if datum.poseKeypoints is not None:
             pose_keypoints[-1, :datum.poseKeypoints.shape[1], :] = datum.poseKeypoints[-1]
-        #print(pose_keypoints, pose_keypoints.shape)
-        batch['keypoints_2d'] = torch.Tensor(pose_keypoints)
+            #print(pose_keypoints, pose_keypoints.shape)
+            batch['keypoints_2d'] = torch.Tensor(pose_keypoints)
         #print(batch['keypoints_2d'])
+        if args.debug_performance:
+            print('-----------------End Open Pose-------------------')
+            debug_times.append(time.time())
+            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
     
+    if args.debug_performance:
+        print('-----------------Begin ProHMR Regression-------------------')
+        debug_times.append(time.time())
 #    batch = None
 #    for i, batch0 in enumerate(tqdm(dataloader)):
 #        batch = batch0
@@ -238,30 +254,57 @@ while cap.isOpened():
     batch = recursive_to(batch, device)
     with torch.no_grad():
         out = model(batch)
+    
+    if args.debug_performance:
+        print('-----------------End ProHMR Regression-------------------')
+        debug_times.append(time.time())
+        print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
 
     batch_size = batch['img'].shape[0]
-    if not args.run_fitting:
-        for n in range(batch_size):
-            #img_fn, _ = os.path.splitext(os.path.split(batch['imgname'][n])[1])
-            regression_img = renderer(out['pred_vertices'][n, 0].detach().cpu().numpy(),
-                                      out['pred_cam_t'][n, 0].detach().cpu().numpy(),
-                                      batch['img'][n])
-            image_show = regression_img[:, :, ::-1]#cv2.resize(regression_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
-            cv2.imshow(named_window_name, image_show)
-            cv2.setWindowTitle(named_window_name, window_title)
-            #cv2.imwrite(os.path.join(args.out_folder, f'{img_fn}_regression.{args.out_format}'), 255*regression_img[:, :, ::-1])
-    if args.run_fitting:
+    image_show = None
+    if batch['keypoints_2d'] is None or not args.run_fitting:
+        if args.render:
+            if args.debug_performance:
+                print('-----------------Begin Rendering-------------------')
+                debug_times.append(time.time())
+            for n in range(batch_size):
+                #img_fn, _ = os.path.splitext(os.path.split(batch['imgname'][n])[1])
+                regression_img = renderer(out['pred_vertices'][n, 0].detach().cpu().numpy(),
+                                          out['pred_cam_t'][n, 0].detach().cpu().numpy(),
+                                          batch['img'][n])
+                image_show = regression_img[:, :, ::-1]#cv2.resize(regression_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
+        
+    if batch['keypoints_2d'] is not None and args.run_fitting:
+    
+        if args.debug_performance:
+            print('-----------------Begin Keypoint Fitting-------------------')
+            debug_times.append(time.time())
+            
         opt_out = model.downstream_optimization(regression_output=out,
                                                 batch=batch,
                                                 opt_task=keypoint_fitting,
                                                 use_hips=False,
                                                 full_frame=args.full_frame)
-        for n in range(batch_size):
-            #img_fn, _ = os.path.splitext(os.path.split(batch['imgname'][n])[1])
-            fitting_img = renderer(opt_out['vertices'][n].detach().cpu().numpy(),
-                                   opt_out['camera_translation'][n].detach().cpu().numpy(),
-                                   batch['img'][n], imgname=batch['imgname'][n], full_frame=args.full_frame)
-            image_show = fitting_img[:, :, ::-1]#cv2.resize(fitting_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
-            cv2.imshow(named_window_name, image_show)
-            cv2.setWindowTitle(named_window_name, window_title)
-            #cv2.imwrite(os.path.join(args.out_folder, f'{img_fn}_fitting.{args.out_format}'), 255*fitting_img[:, :, ::-1])
+        if args.render:
+            if args.debug_performance:
+                print('-----------------End Keypoint Fitting-------------------')
+                debug_times.append(time.time())
+                print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+                    
+            if args.debug_performance:
+                print('-----------------Begin Rendering-------------------')
+                debug_times.append(time.time())
+            for n in range(batch_size):
+                #img_fn, _ = os.path.splitext(os.path.split(batch['imgname'][n])[1])
+                fitting_img = renderer(opt_out['vertices'][n].detach().cpu().numpy(),
+                                       opt_out['camera_translation'][n].detach().cpu().numpy(),
+                                       batch['img'][n], imgname=batch['imgname'][n], full_frame=args.full_frame)
+                image_show = fitting_img[:, :, ::-1]#cv2.resize(fitting_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
+           
+    if args.render: 
+        cv2.imshow(named_window_name, image_show)
+        cv2.setWindowTitle(named_window_name, window_title)
+        if args.debug_performance:
+            print('-----------------End Rendering-------------------')
+            debug_times.append(time.time())
+            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
