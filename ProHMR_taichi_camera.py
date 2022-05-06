@@ -174,11 +174,14 @@ def main():
                 np.radians(180), [1, 0, 0])
         mesh_transform.set_transform(rot)
         
-    gui = ti.GUI(name='ProHMR Demo', res=viewport_size, show_gui=True, fast_gui=False)
+    '''To show widgets, fast_gui=False'''
+    gui = ti.GUI(name='ProHMR Demo', res=viewport_size, show_gui=True, fullscreen=False, fast_gui=False)
     
     '''
     End setup the renderer
     '''
+    fps_label = gui.label('FPS')
+    #gui.text('window title', (100, 100), font_size=72, color=0xFFFF00)
     
     record_time = time.time()
     while gui.running:
@@ -198,10 +201,6 @@ def main():
             continue
         
         image_np = np.swapaxes(frame * (1.0 / 255.0), 0, 1)
-#        print('image_np.shape =', image_np.shape)
-#        print('image_ti.shape =', image_ti.shape)
-#        print('image_ti.n =', image_ti.n)
-#        print('image_ti.m =', image_ti.m)
         image_ti.from_numpy(image_np)
         
         frame1 = cv2.resize(frame, (image_width, image_height), interpolation=cv2.INTER_AREA)
@@ -304,7 +303,8 @@ def main():
         else:
             print(window_title)
         
-        gui.text(window_title, (100, 100), font_size=72, color=0xFFFF00)
+        fps_label.value = fps
+        #gui.text(window_title, (100, 100), font_size=72, color=0xFFFF00)
         gui.show()
         '''
         End rendering.
