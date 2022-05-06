@@ -272,7 +272,7 @@ class SpinnakerCamera:
 
                 result = self._acquire_and_display_images_retrieve_per_cam(cam, nodemap, nodemap_tldevice)
 
-                results[i] = result
+                results[i] = result[:, :, ::-1]
 
             except PySpin.SpinnakerException as ex:
                 print('Error: %s' % ex)
@@ -427,7 +427,7 @@ def main():
         
                     # Clear current reference of a figure. This will improve display speed significantly
                     #plt.clf()
-                    image_show = image_data[:, :, ::-1]
+                    image_show = image_data
                     cv2.imshow(named_window_name, image_show)
                     cv2.setWindowTitle(named_window_name, window_title)
                         

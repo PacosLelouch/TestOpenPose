@@ -25,7 +25,6 @@ from prohmr.models import ProHMR
 from prohmr.optimization import KeypointFitting
 from prohmr.utils import recursive_to
 from prohmr.datasets import OpenPoseDataset
-from prohmr.utils.renderer import Renderer
 
 import taichi as ti
 import tina
@@ -195,7 +194,17 @@ def main():
         
         window_title = 'render [fps = %.3f (hz)]'%(fps)
         
+        if args.debug_performance:
+            print('-----------------Begin Video Capture-------------------')
+            debug_times.append(time.time())
+        
         ret, frame = cap.read()
+        
+        if args.debug_performance:
+            debug_times.append(time.time())
+            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+            print('-----------------End Video Capture-------------------')
+            
         if not ret:
             continue
         
@@ -204,12 +213,31 @@ def main():
 #        print('image_ti.shape =', image_ti.shape)
 #        print('image_ti.n =', image_ti.n)
 #        print('image_ti.m =', image_ti.m)
+        
+        if args.debug_performance:
+            print('-----------------Begin Set TiBuffer-------------------')
+            debug_times.append(time.time())
+            
         image_ti.from_numpy(image_np)
         
+        if args.debug_performance:
+            debug_times.append(time.time())
+            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+            print('-----------------End Set TiBuffer-------------------')
+        
+        if args.debug_performance:
+            print('-----------------Begin Resize NpBuffer-------------------')
+            debug_times.append(time.time())
+            
         frame1 = cv2.resize(frame, (image_width, image_height), interpolation=cv2.INTER_AREA)
         frame2 = np.array([frame1[:,:,0], frame1[:,:,1], frame1[:,:,2]]) * (1.0 / 255.0)
         img_fn = 'video_capture'
     
+        if args.debug_performance:
+            debug_times.append(time.time())
+            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+            print('-----------------End Resize NpBuffer-------------------')
+            
         batch = { 'has_smpl_params':{} }
         batch['img'] = torch.Tensor(np.array([frame2]))
         batch['imgname'] = [img_fn]
@@ -236,9 +264,9 @@ def main():
             #print(batch['keypoints_2d'])
             
             if args.debug_performance:
-                print('-----------------End Open Pose-------------------')
                 debug_times.append(time.time())
                 print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+                print('-----------------End Open Pose-------------------')
         
         if args.debug_performance:
             print('-----------------Begin ProHMR Regression-------------------')
@@ -249,9 +277,9 @@ def main():
             out = model(batch)
             
         if args.debug_performance:
-            print('-----------------End ProHMR Regression-------------------')
             debug_times.append(time.time())
             print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+            print('-----------------End ProHMR Regression-------------------')
     
         batch_size = batch['img'].shape[0]
         vertices_torch = None
@@ -274,9 +302,9 @@ def main():
                                                     use_hips=False,
                                                     full_frame=args.full_frame)
             if args.debug_performance:
-                print('-----------------End Keypoint Fitting-------------------')
                 debug_times.append(time.time())
                 print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+                print('-----------------End Keypoint Fitting-------------------')
             
             for n in range(batch_size):
                 vertices_torch = opt_out['vertices'][n].detach()
@@ -300,9 +328,9 @@ def main():
             gui.set_image(scene.img)
             
             if args.debug_performance:
-                print('-----------------End Rendering-------------------')
                 debug_times.append(time.time())
                 print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+                print('-----------------End Rendering-------------------')
         else:
             print(window_title)
         
