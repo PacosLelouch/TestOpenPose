@@ -176,6 +176,8 @@ def main():
         
     gui = ti.GUI(name='ProHMR Demo', res=viewport_size, show_gui=True, fast_gui=False)
     
+    fps_widget = gui.label('FPS')
+    
     '''
     End setup the renderer
     '''
@@ -304,7 +306,8 @@ def main():
         else:
             print(window_title)
         
-        gui.text(window_title, (100, 100), font_size=72, color=0xFFFF00)
+        fps_widget.value = fps
+        #gui.text(window_title, (100, 100), font_size=72, color=0xFFFF00)
         gui.show()
         '''
         End rendering.
