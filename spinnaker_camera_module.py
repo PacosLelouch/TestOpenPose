@@ -33,10 +33,16 @@ import cv2
 
 class SpinnakerCamera:
 
-    def __init__(self):
+    def __init__(self, max_width=-1):
         self.continue_recording = True
         self.is_initialized = False
         self.handle_close = lambda evt: self.handle_close_function(evt)
+        
+        self.max_width = max_width
+        self.capture_sizes = []
+        
+    def check_width_exceed_max(self, width):
+        return self.max_width >= 0 and width >= self.max_width
         
     def get_capture_sizes(self):
         if not self.is_initialized:
@@ -52,6 +58,10 @@ class SpinnakerCamera:
         for i, cam in enumerate(cam_list):
             height = cam.SensorHeight.GetValue()
             width = cam.SensorWidth.GetValue()
+            if self.check_width_exceed_max(width):
+                ratio = self.max_width / width
+                width = self.max_width
+                height = int(height * ratio)
             capture_sizes[i] = (width, height)
             
         return capture_sizes
@@ -116,6 +126,8 @@ class SpinnakerCamera:
                 print('Error: %s' % ex)
                 result = False
                 break
+            
+        self.capture_sizes = self.get_capture_sizes()
 
         if result:
             self.is_initialized = True
@@ -271,8 +283,16 @@ class SpinnakerCamera:
                 nodemap = cam.GetNodeMap()
 
                 result = self._acquire_and_display_images_retrieve_per_cam(cam, nodemap, nodemap_tldevice)
+                
+                height, width = result.shape[:2]
+                
+                if self.check_width_exceed_max(width):
+                    ratio = self.max_width / width
+                    width = self.max_width
+                    height = int(height * ratio)
+                    result = cv2.resize(result, (width, height), interpolation=cv2.INTER_AREA)
 
-                results[i] = result[:, :, ::-1]
+                results[i] = result
 
             except PySpin.SpinnakerException as ex:
                 print('Error: %s' % ex)
@@ -310,7 +330,7 @@ class SpinnakerCamera:
                 else:                    
 
                     # Getting the image data as a numpy array
-                    image_data = image_result.GetNDArray()
+                    image_data = image_result.GetNDArray()[:, :, ::-1]
                     #print(image_data.shape)
                     #print(image_data.dtype)
 

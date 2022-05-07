@@ -41,7 +41,7 @@ from prohmr.utils import recursive_to
 from prohmr.datasets import OpenPoseDataset
 from prohmr.utils.renderer import Renderer
 
-from my_renderer import MyRenderer
+from my_viewer import MyViewer
 from my_video_capture import MyVideoCapture
 
 
@@ -143,20 +143,20 @@ image_width = model_cfg.MODEL.IMAGE_SIZE
 image_height = model_cfg.MODEL.IMAGE_SIZE
 
 capture_size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-print('capture_size =', capture_size)
 image_ratio = 1.0 if args.screen_width == -1 else args.screen_width / capture_size[0]
 viewport_size = (int(capture_size[0] * image_ratio), int(capture_size[1] * image_ratio))
 print('viewport_size =', viewport_size)
 
 # Setup the renderer
 #print(type(model.smpl.faces), model.smpl.get_num_verts())
-renderer = MyRenderer(faces=model.smpl.faces, 
+renderer = MyViewer(faces=model.smpl.faces, 
                       cfg={
                               'FOCAL_LENGTH': model_cfg.EXTRA.FOCAL_LENGTH,
                               'IMAGE_SIZE': model_cfg.MODEL.IMAGE_SIZE,
                               'IMAGE_STD': model_cfg.MODEL.IMAGE_STD,
                               'IMAGE_MEAN': model_cfg.MODEL.IMAGE_MEAN,
-                              }, 
+                              },
+                      capture_size=capture_size,
                       viewport_size=viewport_size)
 
 os.chdir('../../')
@@ -166,15 +166,9 @@ os.chdir('../../')
 
 # Go over each image in the dataset
 #for i, batch in enumerate(tqdm(dataloader)):
-named_window_name = 'Demo Camera ProHMR'
-cv2.namedWindow(named_window_name)
-
-if args.run_open_pose:
-    named_window_name_OpenPose = 'Demo Camera OpenPose'
-    cv2.namedWindow(named_window_name_OpenPose)
 
 record_time = 0.0
-while cap.isOpened():
+while cap.isOpened() and renderer.my_renderer.is_active:
     if cv2.waitKey(1) & 0Xff == ord('q'):
         cap.release()
         cv2.destroyAllWindows()
@@ -190,6 +184,9 @@ while cap.isOpened():
         debug_times = [record_time]
     
     window_title = 'render [fps = %.3f (hz)]'%(fps)
+    
+    renderer.my_renderer.viewer_flags['window_title'] = window_title
+    print('window_title:', window_title)
     
     ret, frame = cap.read()
     if not ret:
@@ -227,8 +224,7 @@ while cap.isOpened():
         
         if args.run_open_pose:
             window_title_OpenPose = 'OpenPose [fps = %.3f (hz)]'%(fps)
-            cv2.imshow(named_window_name_OpenPose, cv2.resize(datum.cvOutputData, viewport_size))
-            cv2.setWindowTitle(named_window_name_OpenPose, window_title_OpenPose)
+            
         
         pose_keypoints = np.zeros((1, 44, 3))
         if datum.poseKeypoints is not None:
@@ -273,7 +269,7 @@ while cap.isOpened():
                 regression_img = renderer(out['pred_vertices'][n, 0].detach().cpu().numpy(),
                                           out['pred_cam_t'][n, 0].detach().cpu().numpy(),
                                           frame * (1.0 / 255.0))
-                image_show = regression_img[:, :, ::-1]#cv2.resize(regression_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
+                #image_show = regression_img[:, :, ::-1]#cv2.resize(regression_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
         
     if batch['keypoints_2d'] is not None and args.run_fitting:
     
@@ -286,13 +282,12 @@ while cap.isOpened():
                                                 opt_task=keypoint_fitting,
                                                 use_hips=False,
                                                 full_frame=args.full_frame)
-        if args.debug_performance:
-            print('-----------------End Keypoint Fitting-------------------')
-            debug_times.append(time.time())
-            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
-                
         if args.render:
-            
+            if args.debug_performance:
+                print('-----------------End Keypoint Fitting-------------------')
+                debug_times.append(time.time())
+                print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+                    
             if args.debug_performance:
                 print('-----------------Begin Rendering-------------------')
                 debug_times.append(time.time())
@@ -301,12 +296,14 @@ while cap.isOpened():
                 fitting_img = renderer(opt_out['vertices'][n].detach().cpu().numpy(),
                                        opt_out['camera_translation'][n].detach().cpu().numpy(),
                                        frame * (1.0 / 255.0), imgname=batch['imgname'][n], full_frame=args.full_frame)
-                image_show = fitting_img[:, :, ::-1]#cv2.resize(fitting_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
+                #image_show = fitting_img[:, :, ::-1]#cv2.resize(fitting_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
            
-    if args.render: 
-        cv2.imshow(named_window_name, image_show)
-        cv2.setWindowTitle(named_window_name, window_title)
-        if args.debug_performance:
-            print('-----------------End Rendering-------------------')
-            debug_times.append(time.time())
-            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+#    if args.render: 
+#        cv2.imshow(named_window_name, image_show)
+#        cv2.setWindowTitle(named_window_name, window_title)
+#        if args.debug_performance:
+#            print('-----------------End Rendering-------------------')
+#            debug_times.append(time.time())
+#            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+                
+renderer.release()

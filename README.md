@@ -37,9 +37,9 @@ Interactive OpenPose-related applications.
 #### Taichi Backend
 
 ```shell
-python ProHMR_taichi_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --cam=https://10.0.0.139:8080/video --screen_width=800 --debug_performance=0
+python ProHMR_taichi_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --cam=https://10.0.0.139:8080/video --screen_width=800 --debug_performance=0 --with_background=1
 
-python ProHMR_taichi_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --cam=https://10.0.0.139:8080/video --screen_width=800 --debug_performance=0
+python ProHMR_taichi_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --cam=https://10.0.0.139:8080/video --screen_width=800 --debug_performance=0 --with_background=1
 ```
 
 
@@ -47,9 +47,9 @@ python ProHMR_taichi_camera.py --img_folder=example_data/images --keypoint_folde
 #### 
 
 ```shell
-python ProHMR_taichi_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --screen_width=800 --debug_performance=0
+python ProHMR_taichi_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --screen_width=800 --debug_performance=0 --with_background=1 --capture_resize=640
 
-python ProHMR_taichi_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --screen_width=800 --debug_performance=0
+python ProHMR_taichi_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --screen_width=800 --debug_performance=0 --with_background=1 --capture_resize=640
 ```
 
 
@@ -59,9 +59,9 @@ python ProHMR_taichi_spinnaker_camera.py --img_folder=example_data/images --keyp
 #### Pyrender Offline Backend
 
 ```shell
-python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose
+python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose --with_background=1
 
-python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose
+python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --run_fitting --cam=https://10.0.0.139:8080/video --screen_width=800 --run_open_pose --with_background=1
 ```
 
 
@@ -69,9 +69,9 @@ python ProHMR_demo_camera.py --img_folder=example_data/images --keypoint_folder=
 
 
 ```shell
-python ProHMR_demo_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --screen_width=800 --run_open_pose
+python ProHMR_demo_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --screen_width=800 --run_open_pose --with_background=1 --capture_resize=640
 
-python ProHMR_demo_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --run_fitting --screen_width=800 --run_open_pose
+python ProHMR_demo_spinnaker_camera.py --img_folder=example_data/images --keypoint_folder=example_data/keypoints --out_folder=out --run_fitting --screen_width=800 --run_open_pose --with_background=1 --capture_resize=640
 ```
 
 

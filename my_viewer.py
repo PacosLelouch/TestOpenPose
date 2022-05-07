@@ -1,3 +1,5 @@
+"""TODO"""
+
 
 #import os
 #import sys
@@ -16,8 +18,7 @@ import trimesh
 from typing import List, Optional
 #from prohmr.utils.renderer import Renderer
 
-#class MyRenderer(Renderer):
-class MyRenderer:
+class MyViewer:
     
     def create_raymond_lights() -> List[pyrender.Node]:
         """
@@ -50,7 +51,7 @@ class MyRenderer:
     
         return nodes
     
-    def __init__(self, faces, cfg : dict, viewport_size=None):
+    def __init__(self, faces, cfg : dict, capture_size, viewport_size=None):
         """
         Wrapper around the pyrender renderer to render SMPL meshes.
         Args:
@@ -91,7 +92,7 @@ class MyRenderer:
 #        scene.add(camera, pose=camera_pose)
 
 
-        light_nodes = MyRenderer.create_raymond_lights()
+        light_nodes = MyViewer.create_raymond_lights()
         for node in light_nodes:
             scene.add_node(node)
         
@@ -102,17 +103,42 @@ class MyRenderer:
         self.camera_node = None
         
         self.viewport_size = viewport_size if viewport_size is not None else (self.img_res, self.img_res)
-        self.my_renderer = pyrender.OffscreenRenderer(viewport_width=self.viewport_size[0],
-                                                      viewport_height=self.viewport_size[1],
-                                                      point_size=1.0)
-        #self.viewer = pyrender.Viewer()
+            
+        
+        ratio_fx = self.viewport_size[0] / self.img_res#capture_size[0]
+        ratio_fy = self.viewport_size[1] / self.img_res#capture_size[1]
+#        ratio_fx = self.viewport_size[0] / image.shape[1]
+#        ratio_fy = self.viewport_size[1] / image.shape[0]
+        
+        camera_center = [self.viewport_size[0] * 0.5, self.viewport_size[1] * 0.5]#[image.shape[1] / 2., image.shape[0] / 2.]
+        
+        self.camera = pyrender.IntrinsicsCamera(fx=self.focal_length * ratio_fx, fy=self.focal_length * ratio_fy,
+                                           cx=camera_center[0], cy=camera_center[1])
+        
+#        self.camera_node = pyrender.Node(camera=self.camera, matrix=np.eye(4))
+#        self.scene.add_node(self.camera_node)
+#        self.scene.main_camera_node = self.camera_node#TODO
+        
+        viewer_flags = dict(show_world_axis=True, show_mesh_axis=True)
+        
+        self.my_renderer = pyrender.Viewer(scene=scene, 
+                                           viewport_size=(self.viewport_size[0], self.viewport_size[1]),
+                                           viewer_flags=viewer_flags,
+                                           run_in_thread=True,
+                                           point_size=1.0)
+        self.camera_node = self.scene.main_camera_node
+        
+        self.scene.remove_node(self.camera_node)
+        self.camera_node.camera = self.camera
+        self.scene.add_node(self.camera_node)
+        self.my_renderer._camera_node = self.camera_node
     
     def __call__(self,
                  vertices: np.array,
                  camera_translation: np.array,
                  image: np.array,
                  full_frame: bool=False,
-                 imgname: Optional[str]=None) -> np.array:
+                 imgname: Optional[str]=None):
         """
         Render meshes on input image
         Args:
@@ -134,26 +160,26 @@ class MyRenderer:
 #            #image = image + torch.tensor(self.img_mean, device=image.device).reshape(3,1,1)
 #            image = image.permute(1, 2, 0).cpu().numpy()
             
-        #print(image.shape)
-        ratio_fx = self.viewport_size[0] / self.img_res#image.shape[1]
-        ratio_fy = self.viewport_size[1] / self.img_res#image.shape[0]
-        #ratio_fx = image.shape[1] / self.viewport_size[0]
-        #ratio_fy = image.shape[0] / self.viewport_size[1]
             
         image = cv2.resize(image, self.viewport_size, interpolation=cv2.INTER_AREA)
         
+        self.my_renderer.set_caption(self.my_renderer.viewer_flags['window_title'])
+        self.my_renderer.render_lock.acquire()
+        
         camera_translation[0] *= -1.
+#        camera_pose = np.array([[1.0, 0.0, 0.0, 0.0],
+#                                [0.0, 1.0, 0.0, 0.0],
+#                                [0.0, 0.0, 1.0, 0.0],
+#                                [0.0, 0.0, 0.0, 1.0]])
         camera_pose = np.eye(4)
         camera_pose[:3, 3] = camera_translation
-        camera_center = [self.viewport_size[0] * 0.5, self.viewport_size[1] * 0.5]#[image.shape[1] / 2., image.shape[0] / 2.]
         
-        camera = pyrender.IntrinsicsCamera(fx=self.focal_length * ratio_fx, fy=self.focal_length * ratio_fy,
-                                           cx=camera_center[0], cy=camera_center[1])
-        
-        if self.camera_node:
-            scene.remove_node(self.camera_node)
-        self.camera_node = pyrender.Node(camera=camera, matrix=camera_pose)
-        scene.add_node(self.camera_node)
+        self.camera_node.matrix = camera_pose
+        self.my_renderer._trackball._n_pose = camera_pose
+#        if self.camera_node:
+#            scene.remove_node(self.camera_node)
+#        self.camera_node = pyrender.Node(camera=self.camera, matrix=camera_pose)
+#        scene.add_node(self.camera_node)
         
         mesh = trimesh.Trimesh(vertices.copy(), self.faces.copy())
         rot = trimesh.transformations.rotation_matrix(
@@ -170,12 +196,21 @@ class MyRenderer:
 #        renderer = pyrender.OffscreenRenderer(viewport_width=image.shape[1],
 #                                              viewport_height=image.shape[0],
 #                                              point_size=1.0)
+        
+        self.my_renderer.render_lock.release()
 
-        color, rend_depth = self.my_renderer.render(scene, flags=pyrender.RenderFlags.RGBA)
-        color = color.astype(np.float32) / 255.0
-        valid_mask = (color[:, :, -1] > 0)[:, :, np.newaxis]
-        output_img = (color[:, :, :3] * valid_mask + (1 - valid_mask) * image)
-
-#        output_img = output_img.astype(np.float32)
-#        renderer.delete()
-        return output_img
+#        color, rend_depth = self.my_renderer.render(scene, flags=pyrender.RenderFlags.RGBA)
+#        color = color.astype(np.float32) / 255.0
+#        valid_mask = (color[:, :, -1] > 0)[:, :, np.newaxis]
+#        output_img = (color[:, :, :3] * valid_mask + (1 - valid_mask) * image)
+#
+##        output_img = output_img.astype(np.float32)
+##        renderer.delete()
+#        return output_img
+        return None
+        
+    def release(self):
+        if self.my_renderer.is_active:
+            self.my_renderer.close_external()
+            while self.my_renderer.is_active:
+                pass

@@ -44,6 +44,7 @@ parser.add_argument('--run_open_pose', dest='run_open_pose', action='store_true'
 parser.add_argument('--screen_width', type=int, default=-1, help='Screen width. Default is -1 for not changing.')
 parser.add_argument('--render', type=int, default=1, help='Render result. Default is 1.')
 parser.add_argument('--debug_performance', type=int, default=0, help='Debug performance. Default is 0.')
+parser.add_argument('--with_background', type=int, default=1, help='With background. Default is 1.')
 
 
 args = parser.parse_args()
@@ -146,7 +147,8 @@ def main():
     '''
     Begin setup the renderer
     '''
-    image_ti = ti.Vector.field(3, float, shape=capture_size)
+    if args.with_background:
+        image_ti = ti.Vector.field(3, float, shape=capture_size)
     
     if args.render:
         camera_cfg = {
@@ -208,23 +210,6 @@ def main():
         if not ret:
             continue
         
-        image_np = np.swapaxes(frame * (1.0 / 255.0), 0, 1)
-#        print('image_np.shape =', image_np.shape)
-#        print('image_ti.shape =', image_ti.shape)
-#        print('image_ti.n =', image_ti.n)
-#        print('image_ti.m =', image_ti.m)
-        
-        if args.debug_performance:
-            print('-----------------Begin Set TiBuffer-------------------')
-            debug_times.append(time.time())
-            
-        image_ti.from_numpy(image_np)
-        
-        if args.debug_performance:
-            debug_times.append(time.time())
-            print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
-            print('-----------------End Set TiBuffer-------------------')
-        
         if args.debug_performance:
             print('-----------------Begin Resize NpBuffer-------------------')
             debug_times.append(time.time())
@@ -237,6 +222,26 @@ def main():
             debug_times.append(time.time())
             print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
             print('-----------------End Resize NpBuffer-------------------')
+        
+        if args.with_background:
+            image_np = np.swapaxes(frame * (1.0 / 255.0), 0, 1)
+#            print('image_np.shape =', image_np.shape)
+#            print('image_ti.shape =', image_ti.shape)
+#            print('image_ti.n =', image_ti.n)
+#            print('image_ti.m =', image_ti.m)
+            
+            if args.debug_performance:
+                print('-----------------Begin Set TiBuffer-------------------')
+                debug_times.append(time.time())
+                        
+                print('image_np.shape =', image_np.shape, 'image_ti.shape =', image_ti.shape)#DEBUG
+                
+            image_ti.from_numpy(image_np)
+            
+            if args.debug_performance:
+                debug_times.append(time.time())
+                print('Elapsed %.3f (s)\n' % (debug_times[-1] - debug_times[-2]))
+                print('-----------------End Set TiBuffer-------------------')
             
         batch = { 'has_smpl_params':{} }
         batch['img'] = torch.Tensor(np.array([frame2]))
@@ -323,7 +328,7 @@ def main():
             mesh_smooth.update_normal()
             
             scene.input(gui, cam_translate_torch.cpu().numpy())
-            scene.render(image_ti)
+            scene.render(image_ti if args.with_background else None)
             
             gui.set_image(scene.img)
             
