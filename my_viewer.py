@@ -16,7 +16,10 @@ import torch
 import pyrender
 import trimesh
 from typing import List, Optional
-#from prohmr.utils.renderer import Renderer
+from pyrender.constants import GLTF
+import OpenGL.GL as GL
+import custom_pyviewer
+import custom_pyrenderer
 
 class MyViewer:
     
@@ -70,7 +73,8 @@ class MyViewer:
         material = pyrender.MetallicRoughnessMaterial(
             metallicFactor=0.0,
             alphaMode='OPAQUE',
-            baseColorFactor=(1.0, 1.0, 0.9, 1.0))
+            baseColorFactor=(1.0, 1.0, 0.9, 1.0),
+            doubleSided=True)
 
 #        mesh = trimesh.Trimesh(vertices.copy(), self.faces.copy())
 #        rot = trimesh.transformations.rotation_matrix(
@@ -99,6 +103,7 @@ class MyViewer:
         self.mesh_material = material
         self.scene = scene
         
+        self.background_node = None
         self.mesh_node = None
         self.camera_node = None
         
@@ -118,10 +123,75 @@ class MyViewer:
 #        self.camera_node = pyrender.Node(camera=self.camera, matrix=np.eye(4))
 #        self.scene.add_node(self.camera_node)
 #        self.scene.main_camera_node = self.camera_node#TODO
+        '''
+        Begin Background
+        '''
+        self.background_image = np.ones((capture_size[0], capture_size[1], 3), dtype=np.float32)
+        self.background_sampler = pyrender.Sampler(name='background_sampler',
+                                                   magFilter=GLTF.LINEAR,
+                                                   minFilter=GLTF.LINEAR)
+        
+        self.background_texture = pyrender.Texture(name='background_texture', 
+                                                   source=self.background_image, 
+                                                   source_channels='RGB',
+                                                   #width=image.shape[1],
+                                                   #height=image.shape[0],
+                                                   sampler=self.background_sampler,
+                                                   data_format=GL.GL_FLOAT)
+        self.background_material = pyrender.Material(emissiveTexture=self.background_texture, 
+                                                                      emissiveFactor=np.array([0.9, 0.1, 1.0]),
+                                                                      name='background_material',
+                                                                      doubleSided=True)
+#        self.background_material = pyrender.MetallicRoughnessMaterial(baseColorFactor=np.array([0.0, 0.0, 0.0, 1.0]),
+#                                                                      emissiveTexture=self.background_texture, 
+#                                                                      emissiveFactor=np.array([0.9, 0.1, 1.0, 1.0]),
+#                                                                      name='background_material',
+#                                                                      doubleSided=True)
+        
+#        half_width = self.viewport_size[0] // 2
+#        half_height = self.viewport_size[1] // 2
+#        background_z = -camera_pose[3, 2]
+#        background_positions = np.array([[-half_width, -half_height, -background_z],
+#                                         [half_width, -half_height, -background_z],
+#                                         [half_width, half_height, -background_z],
+#                                         [-half_width, half_height, -background_z]])
+        proj = self.camera.get_projection_matrix(self.viewport_size[0], self.viewport_size[1])
+        proj_z = 0.9
+        proj_x = 5.0
+        proj_y = 5.0
+        background_positions_4 = np.array([[-proj_x, -proj_y, proj_z, 1.0],
+                                         [proj_x, -proj_y, proj_z, 1.0],
+                                         [proj_x, proj_y, proj_z, 1.0],
+                                         [-proj_x, proj_y, proj_z, 1.0]]) @ np.linalg.inv(proj).T
+        background_positions = background_positions_4[:, :3] / background_positions_4[:, 3].reshape((-1, 1))
+        background_texcoords = np.array([[0.0, 0.0],
+                                         [1.0, 0.0],
+                                         [1.0, 1.0],
+                                         [0.0, 1.0]])
+        print('unprojected coords =', background_positions)
+        
+#        proj_coord = background_positions_4 @ proj.T
+#        print('projected coords =', proj_coord)
+        
+        self.background_primitives = [pyrender.Primitive(positions=background_positions, 
+                                                         texcoord_0=background_texcoords,
+                                                         texcoord_1=background_texcoords,
+                                                         indices=np.array([[0, 2, 1], [0, 3, 2]]),
+                                                         material=self.background_material)]
+                                                         #material=self.mesh_material)]
+        self.background_mesh = pyrender.Mesh(self.background_primitives, name='background_mesh')
+        if self.background_node:
+            scene.remove_node(self.background_node)
+        self.background_node = pyrender.Node(mesh=self.background_mesh, name='background')
+        scene.add_node(self.background_node)
+        
+        '''
+        End Background
+        '''
         
         viewer_flags = dict(show_world_axis=True, show_mesh_axis=True)
         
-        self.my_renderer = pyrender.Viewer(scene=scene, 
+        self.my_renderer = custom_pyviewer.CustomViewer(scene=scene, 
                                            viewport_size=(self.viewport_size[0], self.viewport_size[1]),
                                            viewer_flags=viewer_flags,
                                            run_in_thread=True,
@@ -166,20 +236,47 @@ class MyViewer:
         self.my_renderer.set_caption(self.my_renderer.viewer_flags['window_title'])
         self.my_renderer.render_lock.acquire()
         
-        camera_translation[0] *= -1.
-#        camera_pose = np.array([[1.0, 0.0, 0.0, 0.0],
-#                                [0.0, 1.0, 0.0, 0.0],
-#                                [0.0, 0.0, 1.0, 0.0],
-#                                [0.0, 0.0, 0.0, 1.0]])
-        camera_pose = np.eye(4)
-        camera_pose[:3, 3] = camera_translation
+        if camera_translation is not None:
+            camera_translation[0] *= -1.
+            camera_pose = np.eye(4)
+            camera_pose[:3, 3] = camera_translation
+            
+            self.camera_node.matrix = camera_pose
+            self.my_renderer._trackball._n_pose = camera_pose
+#            if self.camera_node:
+#                scene.remove_node(self.camera_node)
+#            self.camera_node = pyrender.Node(camera=self.camera, matrix=camera_pose)
+#            scene.add_node(self.camera_node)
+        else:
+            camera_pose = self.camera_node.matrix
         
-        self.camera_node.matrix = camera_pose
-        self.my_renderer._trackball._n_pose = camera_pose
-#        if self.camera_node:
-#            scene.remove_node(self.camera_node)
-#        self.camera_node = pyrender.Node(camera=self.camera, matrix=camera_pose)
-#        scene.add_node(self.camera_node)
+        '''
+        Begin Background
+        '''
+        
+        self.background_image = (image * (1.0 / 255.0)).astype(np.float32)
+        #print(self.background_image, self.background_image.shape, self.background_image.dtype)
+        
+        self.background_texture.source = self.background_image
+        
+        proj2model = np.eye(4)#camera_pose# @ np.linalg.inv(proj)
+#        print('view =', np.linalg.inv(camera_pose))
+##        print('view.inv =', camera_pose)
+#        print('proj =', proj)
+#        print('proj.inv =', np.linalg.inv(proj))
+        print('proj2model =', proj2model)
+        
+        self.background_node.matrix = proj2model
+        
+        '''
+        End Background
+        '''
+        
+            
+        '''
+        Begin Body
+        '''
+        #print('mesh.vert[0] =', vertices[0])
         
         mesh = trimesh.Trimesh(vertices.copy(), self.faces.copy())
         rot = trimesh.transformations.rotation_matrix(
@@ -192,10 +289,10 @@ class MyViewer:
         self.mesh_node = pyrender.Node(mesh=mesh, name='mesh')
         scene.add_node(self.mesh_node)
         #scene.add(mesh, 'mesh')
-
-#        renderer = pyrender.OffscreenRenderer(viewport_width=image.shape[1],
-#                                              viewport_height=image.shape[0],
-#                                              point_size=1.0)
+        
+        '''
+        End Body
+        '''
         
         self.my_renderer.render_lock.release()
 

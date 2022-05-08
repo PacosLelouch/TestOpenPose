@@ -268,7 +268,7 @@ while cap.isOpened() and renderer.my_renderer.is_active:
                 #img_fn, _ = os.path.splitext(os.path.split(batch['imgname'][n])[1])
                 regression_img = renderer(out['pred_vertices'][n, 0].detach().cpu().numpy(),
                                           out['pred_cam_t'][n, 0].detach().cpu().numpy(),
-                                          frame * (1.0 / 255.0))
+                                          frame)
                 #image_show = regression_img[:, :, ::-1]#cv2.resize(regression_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
         
     if batch['keypoints_2d'] is not None and args.run_fitting:
@@ -295,7 +295,7 @@ while cap.isOpened() and renderer.my_renderer.is_active:
                 #img_fn, _ = os.path.splitext(os.path.split(batch['imgname'][n])[1])
                 fitting_img = renderer(opt_out['vertices'][n].detach().cpu().numpy(),
                                        opt_out['camera_translation'][n].detach().cpu().numpy(),
-                                       frame * (1.0 / 255.0), imgname=batch['imgname'][n], full_frame=args.full_frame)
+                                       frame, imgname=batch['imgname'][n], full_frame=args.full_frame)
                 #image_show = fitting_img[:, :, ::-1]#cv2.resize(fitting_img[:, :, ::-1], (640, 480), interpolation=cv2.INTER_AREA)
            
 #    if args.render: 
