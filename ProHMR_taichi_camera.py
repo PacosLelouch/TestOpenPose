@@ -27,6 +27,7 @@ from prohmr.utils import recursive_to
 from prohmr.datasets import OpenPoseDataset
 
 import taichi as ti
+from taichi.lang import meta as ti_meta
 import tina
 from ti_raster_scene import TiRasterScene
 from ti_torch_mesh import TiTorchMesh
@@ -252,7 +253,8 @@ def main():
                         
                 print('image_np.shape =', image_np.shape, 'image_ti.shape =', image_ti.shape)#DEBUG
                 
-            image_ti.from_numpy(image_np)
+            #image_ti.from_numpy(image_np)
+            ti_meta.ext_arr_to_matrix(image_np, image_ti, True)# Without ti.sync
             
             if args.debug_performance:
                 debug_times.append(time.time())
@@ -343,6 +345,7 @@ def main():
             mesh_raw.set_verts_from_torch(vertices_torch)
             mesh_smooth.update_normal()
             
+            ti.sync()
             if use_taichi_GUI:
                 scene.input(gui, cam_translate_torch.cpu().numpy())
                 scene.render(image_ti if args.with_background else None)

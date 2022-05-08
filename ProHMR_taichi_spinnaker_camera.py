@@ -27,6 +27,7 @@ from prohmr.utils import recursive_to
 from prohmr.datasets import OpenPoseDataset
 
 import taichi as ti
+from taichi.lang import meta as ti_meta
 import tina
 from ti_raster_scene import TiRasterScene
 from ti_torch_mesh import TiTorchMesh
@@ -99,6 +100,8 @@ if should_run_open_pose:
 """
 End OpenPose Settings
 """
+
+use_taichi_GUI = False
 
 def main():
     
@@ -189,16 +192,28 @@ def main():
                             np.radians(180), [1, 0, 0])
                     mesh_transform.set_transform(rot)
                     
-                gui = ti.GUI(name='ProHMR Demo', res=viewport_size, show_gui=True, fast_gui=False)
-                
-                fps_widget = gui.label('FPS')
+                if use_taichi_GUI:
+                    gui = ti.GUI(name='ProHMR Demo', res=viewport_size, show_gui=True, fast_gui=False)
+                    
+                    fps_widget = gui.label('FPS')
+                else:
+                    named_window_name = 'ProHMR Demo'
+                    cv2.namedWindow(named_window_name)
                 
                 '''
                 End setup the renderer
                 '''
                 
                 record_time = time.time()
-                while gui.running:
+                while sp_camera.continue_recording:
+                    if use_taichi_GUI:
+                        if not gui.running:
+                            break
+                    else:
+                        if cv2.waitKey(1) & 0Xff == ord('q'):
+                            cv2.destroyAllWindows()
+                            break
+                        
                     cur_time = time.time()
                     fps = (cur_time - record_time)
                     fps = -1.0 if fps == 0.0 else 1.0 / fps
@@ -251,7 +266,9 @@ def main():
                             debug_times.append(time.time())
                         
                             print('image_np.shape =', image_np.shape, 'image_ti.shape =', image_ti.shape)#DEBUG
-                        image_ti.from_numpy(image_np)
+                            
+                        #image_ti.from_numpy(image_np)
+                        ti_meta.ext_arr_to_matrix(image_np, image_ti, True)# Without ti.sync
                         
                         if args.debug_performance:
                             debug_times.append(time.time())
@@ -342,10 +359,15 @@ def main():
                         mesh_raw.set_verts_from_torch(vertices_torch)
                         mesh_smooth.update_normal()
                         
-                        scene.input(gui, cam_translate_torch.cpu().numpy())
-                        scene.render(image_ti if args.with_background else None)
-                        
-                        gui.set_image(scene.img)
+                        ti.sync()
+                        if use_taichi_GUI:
+                            scene.input(gui, cam_translate_torch.cpu().numpy())
+                            scene.render(image_ti if args.with_background else None)
+                            
+                            gui.set_image(scene.img)
+                        else:
+                            scene.input(None, cam_translate_torch.cpu().numpy())
+                            scene.render(image_ti if args.with_background else None)
                         
                         if args.debug_performance:
                             debug_times.append(time.time())
@@ -353,10 +375,14 @@ def main():
                             print('-----------------End Rendering-------------------')
                     else:
                         print(window_title)
-                    
-                    fps_widget.value = fps
-                    #gui.text(window_title, (100, 100), font_size=72, color=0xFFFF00)
-                    gui.show()
+                        
+                    if use_taichi_GUI:
+                        fps_widget.value = fps
+                        #gui.text(window_title, (100, 100), font_size=72, color=0xFFFF00)
+                        gui.show()
+                    else:
+                        cv2.imshow(named_window_name, np.swapaxes(scene.img.to_numpy(), 0, 1)[::-1, :, ::-1])
+                        cv2.setWindowTitle(named_window_name, window_title)
                     '''
                     End rendering.
                     '''
